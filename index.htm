@@ -1,0 +1,247 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">
+<META charset="utf-8" />
+<HTML>
+	<SCRIPT>
+		function range(v) {
+			return [...Array(v).keys()];
+		}
+
+		function union(a, b) { return [...new Set([...a, ...b])]; }
+
+		function powerSet(v) {
+			if (new Set(v).size != v.length) {
+				throw "duplicate elements";
+			}
+
+			results = [[]];
+			for (i = 0; i < v.length; ++i) {
+				temp = results.length;
+				for (j = 0; j < temp; ++j) {
+					results.push([v[i], ...results[j]]);
+				}
+			}
+
+			return results;
+		}
+
+		bugs = []
+		changes = []
+
+		// a list (per bug) of elements (list) of the power set of changes (as indices into changes)
+		// array of array of array of integers
+		state = []
+
+		function getGrid() { return document.getElementById('grid'); }
+
+		function addBug(name) {
+			bugs.push(name);
+			state.push(powerSet(range(changes.length)));
+			populateGrid();
+		}
+
+		function uiAddBug() {
+			name = prompt("Enter the bug's name.");
+			addBug(name);
+		}
+
+		function addChange(name) {
+			newIndex = changes.push(name) - 1;
+			for (i = 0; i < bugs.length; ++i) {
+				bugState = state[i];
+				temp = bugState.length;
+				bugState.push([newIndex]);
+				for (j = 0; j < temp; ++j) {
+					bugState.push([newIndex, ...bugState[j]]);
+				}
+			}
+			populateGrid();
+		}
+
+		function uiAddChange() {
+			name = prompt("Enter the change's name.");
+			addChange(name);
+		}
+
+		function populateGrid() {
+			g=getGrid();
+
+			function clear() {
+				while (g.rows.length > 0) {
+					g.deleteRow(0);
+				};
+			}
+
+			function dimension() {
+				for (r = 0; r < changes.length + 4; ++r) {
+					row = g.insertRow(r);
+					for (c = 0; c < bugs.length + 4; ++c) {
+						row.insertCell(c);
+					}
+				}
+			}
+
+			function appendButton(parent, html, handler) {
+				element = document.createElement("INPUT");
+				element.type = "button";
+				element.value = html;
+				element.onclick = handler;
+				element.style.fontSize = '100%';
+				parent.appendChild(element);
+				return element;
+			}
+
+			function setBugsLabel() {
+				v = g.rows[0].cells[3];
+				v.colSpan = bugs.length;
+				center = document.createElement('CENTER');
+				v.appendChild(center);
+				center.innerHTML = "<STRONG>Bugs</STRONG>";
+				add = appendButton(center, "+", uiAddBug);
+				add.style.margin = '5px';
+			}
+
+			function setChangesLabel() {
+				v = g.rows[2].cells[0];
+				v.rowSpan = changes.length + 1;
+				v.innerHTML = "<P style='writing-mode: tb-rl'><STRONG>Changes</STRONG></P>";
+				add = appendButton(v, "+", uiAddChange);
+				add.style.margin = '5px';
+			}
+
+			function setBugHeaders() {
+				for (i = 0; i < bugs.length; ++i) {
+					c = g.rows[1].cells[i + 3]
+					c.style.padding = '.2em';
+					c.innerHTML = bugs[i];
+				}
+			}
+
+			function setChangeHeaders() {
+				for (i = 0; i < changes.length; ++i) {
+					c = g.rows[i + 3].cells[1];
+					c.style.padding = '.2em';
+					c.innerHTML = changes[i];
+				}
+			}
+
+			function setBugState(i) {
+				function getBugCandidateChanges(i) {
+					// list of subsets for bug i
+					d = state[i];
+					e = []; // changes possibly causing bug i
+					for (j = 0; j < d.length; ++j) {
+						f = d[j]; // subset for bug i
+						e = union(e, f);
+					}
+					return e;
+				}
+
+				d = getBugCandidateChanges(i);
+				for (j = 0; j < changes.length; ++j) {
+					c = g.rows[j + 3].cells[i + 2]
+					c.innerHTML = d.includes(j) ? "❓" : "✔️";
+				}
+			}
+
+			function setBugStates() {
+				for (i = 0; i < bugs.length; ++i) {
+					setBugState(i);
+				}
+			}
+
+			function addBugModifiers(i) {
+				c = g.rows[changes.length + 3].cells[i + 3];
+				edit = appendButton(c, "✎", function() { editBug(i); });
+				edit.style.width = '100%';
+				c.appendChild(document.createElement('BR'))
+				del = appendButton(c, "🗑", function() { deleteBug(i); });
+				del.style.width = '100%'
+			}
+
+			function addChangeModifiers(i) {
+				c = g.rows[i + 3].cells[bugs.length + 2];
+				// c.style.height = '100%';
+				edit = appendButton(c, "✎", function() { editChange(i); });
+				edit.style.height = '100%';
+				up = appendButton(c, "↑", function() { moveChangeDown(i); });
+				up.style.height = '100%';
+				down = appendButton(c, "↓", function() { moveChangeUp(i); });
+				down.style.height = '100%';
+				del = appendButton(c, "🗑", function() { deleteChange(i); });
+				del.style.height = '100%';
+			}
+
+			function addModifierButtons() {
+				for (i = 0; i < bugs.length; ++i) {
+					addBugModifiers(i);
+				}
+				for (i = 0; i < changes.length; ++i) {
+					addChangeModifiers(i);
+				}
+			}
+
+			function setBorders() {
+				bugsCellStyle = g.rows[0].cells[3].style;
+				bugsCellStyle.borderLeft = '1px solid black';
+				bugsCellStyle.borderRight = '1px solid black';
+				bugsCellStyle.padding = '.2em';
+
+				changesCellStyle = g.rows[2].cells[0].style;
+				changesCellStyle.borderTop = '1px solid black';
+				changesCellStyle.borderBottom = '1px solid black';
+
+				for (i = 0; i < bugs.length; ++i) {
+					g.rows[1].cells[i + 3].style.border = '1px solid black';
+					g.rows[1].cells[i + 3].style.borderBottom = '0px solid black';
+					g.rows[changes.length + 3].cells[i + 3].style.borderLeft = '1px solid black';
+					g.rows[changes.length + 3].cells[i + 3].style.borderRight = '1px solid black';
+				}
+				for (i = 0; i < changes.length; ++i) {
+					g.rows[i + 3].cells[bugs.length + 2].style.borderTop = '1px solid black';
+					g.rows[i + 3].cells[bugs.length + 2].style.borderBottom = '1px solid black';
+					for (j = -1; j < bugs.length; ++j) {
+						g.rows[i + 3].cells[j + 2].style.border = '1px solid black';
+					}
+				}
+			}
+
+			clear();
+			dimension();
+			setBugsLabel();
+			setChangesLabel();
+			setBugHeaders();
+			setChangeHeaders();
+			setBugStates();
+			setBorders();
+			addModifierButtons();
+		}
+
+		function init() {
+			populateGrid();
+		}
+
+		document.addEventListener('DOMContentLoaded', init, false);
+
+	</SCRIPT>
+	<HEAD>
+		<TITLE>Guided Differential Tester</TITLE>
+	</HEAD>
+	<STYLE>
+		table {
+ 			border-collapse: collapse;
+		}
+		table, th, td {
+			/*border: 1px solid black;*/
+			padding: 0;
+		}
+	</STYLE>
+	<BODY>
+		<INPUT type="checkbox"> Changes are cumulative (e.g. git commits)</INPUT>
+		<TABLE id="grid" style="font-size: 150%; text-align: center; margin: 1em;">
+			<TR>
+				<TD>JavaScript must be enabled.</TD>
+			</TR>
+		</TABLE>
+	</BODY>
+</HTML>
