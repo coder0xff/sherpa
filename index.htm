@@ -71,11 +71,12 @@
 		// same type as states
 		var failures = []
 
-		function getGrid() { return document.getElementById('grid'); }
+		var currentSubset = null;
 
 		function addBug(name) {
 			bugs.push(name);
 			state.push(range(1, Math.pow(2, changes.length)));
+			failures.push([]);
 			populateGrid();
 		}
 
@@ -103,21 +104,33 @@
 			addChange(name);
 		}
 
-		function getChangeIndicesFromSubsetList(subsets) {
-				let e = 0
-				for (let j = 0; j < subsets.length; ++j) {
-					e = e | subsets[j];
-				}
+		function subsetToIndices(subset) {
 				let index = 0;
 				let results = []
-				while (e > 0) {
-					if (e & 1) {
+				while (subset > 0) {
+					if (subset & 1) {
 						results.push(index);
 					}
-					e = e >> 1;
+					subset = subset >> 1;
 					++index;
 				}
 				return results;				
+		}
+
+		function indicesToSubset(indices) {
+			let result = 0;
+			for (let i = 0; i < indices.length; ++i) {
+				result |= Math.pow(2, indices[i]);
+			}
+			return result;
+		}
+
+		function getChangeIndicesFromSubsetList(subsets) {
+				let subset = 0
+				for (let j = 0; j < subsets.length; ++j) {
+					subset = subset | subsets[j];
+				}
+				return subsetToIndices(subset);
 		}
 
 		function getBugCandidateChanges(i) {
@@ -128,8 +141,108 @@
 			return getChangeIndicesFromSubsetList(failures[i]);
 		}
 
+		function isSubset(a, b) {
+			return (a & b) == a;
+		}
+
+		function getNextSubset() {
+			function oddsOfFailure(subset, bugIndex) {
+				return popcount(subset) / getBugCandidateChanges(bugIndex).length;
+			}
+
+			function getBugSubsetWeights(bugIndex) {
+				let bug = state[bugIndex];
+				let weights = new Array(bug.length).fill(0)
+				for (let i = 0; i < bug.length; ++i) {
+					let a = bug[i];
+					for (let j = i + 1; j < bug.length; ++j) {
+						let b = bug[j]
+						if (isSubset(a, b)) { // a is a subset of b
+							weights[i] += oddsOfFailure(a, bugIndex); // so if a fails we can remove b, so add the odds of a failing to a's weight
+							weights[j] += 1 - oddsOfFailure(b, bugIndex); // and if b passes we can remove a, so add the odds of b passing to b's weight
+						}
+					}
+				}
+				return weights;
+			}
+
+			function getSubsetWeights() {
+				let weights = {}
+				for (let i = 0; i < bugs.length; ++i) {
+					let bug = state[i];
+					let bugWeights = getBugSubsetWeights(i);
+					for (let j = 0; j < bugWeights.length; ++j) {
+						let subset = bug[j];
+						let weight = bugWeights[j];
+						if (!(subset in weights)) {
+							weights[subset] = 0;
+						}
+						weights[subset] += weight;
+					}
+				}
+				return weights;
+			}
+
+			function getHeaviestSubsets() {
+				let weights = getSubsetWeights();
+				let heaviestWeight = 0;
+				let heaviestSubsets = [];
+				for (let subset in weights) {
+					if (weights[subset] > heaviestWeight) {
+						heaviestWeight = weights[subset];
+						heaviestSubsets = [subset];
+					} else if (weights[subset] == heaviestWeight) {
+						heaviestSubsets.push(subset);
+					}
+				}
+				return heaviestSubsets;
+			}
+
+			return Math.min(...getHeaviestSubsets());
+		}
+
+		function filterSubsets(passedSubset, bugSubsets) {
+			let results = []
+			for (let i = 0; i < bugSubsets.length; ++i) {
+				if (!isSubset(bugSubsets[i], passedSubset)) {
+					results.push(bugSubsets[i]);
+				}
+			}
+			return results;
+		}
+
+		function filterSupersets(failedSubset, bugSubsets) {
+			let result = []
+			for (let i = 0; i < bugSubsets.length; ++i) {
+				if (!isSubset(failedSubset, bugSubsets[i])) {
+					result.push(bugSubsets[i]);
+				}
+			}
+			return result;
+		}
+
+		function onFail(subset, bugIndex) {
+			failures[bugIndex] = filterSupersets(subset, failures[bugIndex]);
+			failures[bugIndex].push(subset);
+			state[bugIndex] = filterSupersets(subset, state[bugIndex]);
+		}
+
+		function onPass(subset, bugIndex) {
+			state[bugIndex] = filterSubsets(subset, state[bugIndex]);
+		}
+
+		function appendButton(parent, html, handler) {
+			let element = document.createElement("INPUT");
+			element.type = "button";
+			element.value = html;
+			element.onclick = handler;
+			element.style.fontSize = '100%';
+			parent.appendChild(element);
+			return element;
+		}
+
 		function populateGrid() {
-			let g = getGrid();
+			let g = document.getElementById('grid');
 
 			function clear() {
 				while (g.rows.length > 0) {
@@ -144,16 +257,6 @@
 						row.insertCell(c);
 					}
 				}
-			}
-
-			function appendButton(parent, html, handler) {
-				let element = document.createElement("INPUT");
-				element.type = "button";
-				element.value = html;
-				element.onclick = handler;
-				element.style.fontSize = '100%';
-				parent.appendChild(element);
-				return element;
 			}
 
 			function setBugsLabel() {
@@ -274,6 +377,16 @@
 				}
 			}
 
+			function setChangeColors() {
+				if (currentSubset != null) {
+					let indices = subsetToIndices(currentSubset);
+					for (let i = 0; i < changes.length; ++i) {
+						let c = g.rows[i + 3].cells[1];
+						c.style.backgroundColor = (indices.includes(i)) ? 'aquamarine' : '';
+					}
+				}
+			}
+
 			clear();
 			dimension();
 			setBugsLabel();
@@ -283,103 +396,74 @@
 			setBugStates();
 			setBorders();
 			addModifierButtons();
+			setChangeColors();
 		}
 
-		function isSubset(a, b) {
-			return (a & b) == a;
+		function getPrompt() {
+			return document.getElementById('prompt');
 		}
 
-		function getNextSubset() {
-			function oddsOfFailure(subset, bugIndex) {
-				return popcount(subset) / getBugCandidateChanges(bugIndex).length;
-			}
+		function doNextIteration() {
+			currentSubset = getNextSubset();
+			prompt();
+		}
 
-			function getBugSubsetWeights(bugIndex) {
-				let bug = state[bugIndex];
-				let weights = new Array(bug.length).fill(0)
-				for (let i = 0; i < bug.length; ++i) {
-					let a = bug[i];
-					for (let j = i + 1; j < bug.length; ++j) {
-						let b = bug[j]
-						if (isSubset(a, b)) { // a is a subset of b
-							weights[i] += oddsOfFailure(a, bugIndex); // so if a fails we can remove b, so add the odds of a failing to a's weight
-							weights[j] += 1 - oddsOfFailure(b, bugIndex); // and if b passes we can remove a, so add the odds of b passing to b's weight
-						}
+		function populatePassFailPrompt() {
+			let p = getPrompt();
+			let indices = subsetToIndices(currentSubset);
+			p.innerHTML = "With changes ";
+			for (let i = 0; i < indices.length; ++i) {
+				if (i > 0) {
+					if (i == indices.length - 1) {
+						p.innerHTML += " and ";
+					} else {
+						p.innerHTML += ", ";
 					}
 				}
-				return weights;
+				p.innerHTML += "&quot;" + changes[indices[i]] + "&quot;";
 			}
-
-			function getSubsetWeights() {
-				let weights = {}
+			p.innerHTML += " enabled, which bugs were reproducible? Double check your entries before submitting, as errors cannot be corrected.<br>";
+			for (let i = 0; i < bugs.length; ++i) {
+				let checkbox = p.appendChild(document.createElement('INPUT'));
+				checkbox.type = 'checkbox';
+				checkbox.id = 'bug' + i;
+				p.innerHTML += bugs[i] + "<br>";
+			}
+			appendButton(p, "Submit", function() {
 				for (let i = 0; i < bugs.length; ++i) {
-					let bug = state[i];
-					let bugWeights = getBugSubsetWeights(i);
-					for (let j = 0; j < bugWeights.length; ++j) {
-						let subset = bug[j];
-						let weight = bugWeights[j];
-						if (!(subset in weights)) {
-							weights[subset] = 0;
-						}
-						weights[subset] += weight;
+					let checkbox = document.getElementById('bug' + i);
+					if (checkbox.checked) {
+						onFail(currentSubset, i);
+					} else {
+						onPass(currentSubset, i);
 					}
+					doNextIteration();
 				}
-				return weights;
-			}
-
-			function getHeaviestSubsets() {
-				let weights = getSubsetWeights();
-				let heaviestWeight = 0;
-				let heaviestSubsets = [];
-				for (let subset in weights) {
-					if (weights[subset] > heaviestWeight) {
-						heaviestWeight = weights[subset];
-						heaviestSubsets = [subset];
-					} else if (weights[subset] == heaviestWeight) {
-						heaviestSubsets.push(subset);
-					}
-				}
-				return heaviestSubsets;
-			}
-
-			return Math.min(...getHeaviestSubsets());
+			});
 		}
 
-		function filterSubsets(passedSubset, bugSubsets) {
-			results = []
-			for (i = 0; i < bugSubsets.length; ++i) {
-				if (!isSubset(bugSubsets[i], passedSubset)) {
-					results.push(bugSubsets[i]);
-				}
+		function populateEnterBugsAndChangesPrompt() {
+			let p = getPrompt();
+			p.innerHTML = "Use the grid above to enter bug and changes. Once complete, click 'Begin.'<br>";
+			appendButton(p, "Begin", doNextIteration)
+		}
+
+		function prompt() {
+			populateGrid();
+			if (currentSubset == null) {
+				populateEnterBugsAndChangesPrompt();
+			} else {
+				populatePassFailPrompt();
 			}
-		}
-
-		function filterSupersets(failedSubset, bugSubsets) {
-			result = []
-			for (i = 0; i < bugSubsets.length; ++i) {
-				if (!isSubset(failedSubset, bugSubsets[i])) {
-					result.push(bugSubsets[i]);
-				}
-			}
-		}
-
-		function onFail(subset, bugIndex) {
-			failures[bugIndex] = filterSupersets(subset, failures[bugIndex]);
-			failures[bugIndex].push(subset);
-			state[bugIndex] = filterSupersets(subset, state[bugIndex]);
-		}
-
-		function onPass(subset, bugIndex) {
-			state[bugIndex] = filterSubsets(subset, state[bugIndex]);
 		}
 
 		function testInit() {
-			addChange('1');
-			addChange('2');
-			addChange('3');
-			addChange('4');
-			addChange('5');
-			addChange('6');
+			addChange('u');
+			addChange('v');
+			addChange('w');
+			// addChange('x');
+			// addChange('y');
+			// addChange('z');
 			addBug('a');
 			addBug('b');
 			// addBug('c');
@@ -387,13 +471,13 @@
 			//addBug('e');
 			// state[0] = [0];
 			// failures[0] = [1, 2, 3, 16, 17, 18, 19];
-			populateGrid();
 		}
 
 		function init() {
 			populateGrid();
 			testInit();
-			alert(getChangeIndicesFromSubsetList([getNextSubset()]));
+			prompt();
+			//alert(getChangeIndicesFromSubsetList([getNextSubset()]));
 		}
 
 		document.addEventListener('DOMContentLoaded', init, false);
@@ -412,11 +496,12 @@
 		}
 	</STYLE>
 	<BODY>
-		<INPUT type="checkbox"> Changes are cumulative (e.g. git commits)</INPUT>
+<!-- 		<INPUT type="checkbox"> Changes are cumulative (e.g. git commits)</INPUT> -->
 		<TABLE id="grid" style="font-size: 150%; text-align: center; margin: 1em;">
 			<TR>
 				<TD>JavaScript must be enabled.</TD>
 			</TR>
 		</TABLE>
+		<P id="prompt" />
 	</BODY>
 </HTML>
