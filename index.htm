@@ -408,13 +408,17 @@
 				}
 			}
 
-			function setChangeColors() {
-				if (currentSubset != null) {
-					let indices = subsetToIndices(currentSubset);
-					for (let i = 0; i < changes.length; ++i) {
-						let c = g.rows[i + 3].cells[1];
-						c.style.backgroundColor = (indices.includes(i)) ? 'aquamarine' : '';
+			function setBugColors() {
+					for (let i = 0; i < bugs.length; ++i) {
+						let c = g.rows[1].cells[i + 3]
+						c.style.backgroundColor = (currentSubset != null && state[i].includes(currentSubset)) ? 'aquamarine' : '';
 					}
+			}
+			function setChangeColors() {
+				let indices = (currentSubset != null) ? subsetToIndices(currentSubset) : null;
+				for (let i = 0; i < changes.length; ++i) {
+					let c = g.rows[i + 3].cells[1];
+					c.style.backgroundColor = (indices != null && indices.includes(i)) ? 'aquamarine' : '';
 				}
 			}
 
@@ -427,6 +431,7 @@
 			setBugStates();
 			setBorders();
 			addModifierButtons();
+			setBugColors();
 			setChangeColors();
 		}
 
@@ -455,7 +460,7 @@
 			}
 			p.innerHTML += " enabled, which bugs were reproducible? Double check your entries before submitting, as errors cannot be corrected.<br>";
 			for (let i = 0; i < bugs.length; ++i) {
-				if (state[i].length > 0) {
+				if (state[i].includes(currentSubset)) {
 					let checkbox = p.appendChild(document.createElement('INPUT'));
 					checkbox.type = 'checkbox';
 					checkbox.id = 'bug' + i;
