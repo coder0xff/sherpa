@@ -1,22 +1,58 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
-   "http://www.w3.org/TR/html4/strict.dtd">
+	 "http://www.w3.org/TR/html4/strict.dtd">
 <META charset="utf-8" />
 <HTML>
 	<SCRIPT>
-		function range(v) {
-			return [...Array(v).keys()];
+		"use strict";
+		function range(start, stop, step){
+			if (typeof stop=='undefined'){
+				// one param defined
+				stop = start;
+				start = 0;
+			};
+			if (typeof step=='undefined'){
+				step = 1;
+			};
+			let result = [];
+			for (let i=start; step>0 ? i<stop : i>stop; i+=step){
+				result.push(i);
+			};
+			return result;
+		};
+
+		function flatten(a) {
+			return [].concat.apply([], a);
 		}
 
 		function union(a, b) { return [...new Set([...a, ...b])]; }
+	
+		function popcount(x) {
+			x = BigInt(x);
+			let m1  = 0x5555555555555555n; //binary: 0101...
+			let m2  = 0x3333333333333333n; //binary: 00110011..
+			let m4  = 0x0f0f0f0f0f0f0f0fn; //binary:  4 zeros,  4 ones ...
+			let m8  = 0x00ff00ff00ff00ffn; //binary:  8 zeros,  8 ones ...
+			let m16 = 0x0000ffff0000ffffn; //binary: 16 zeros, 16 ones ...
+			let m32 = 0x00000000ffffffffn; //binary: 32 zeros, 32 ones
+			let hff = 0xffffffffffffffffn; //binary: all ones
+			let h01 = 0x0101010101010101n; //the sum of 256 to the power of 0,1,2,3...
+			x = (x & m1 ) + ((x >>  1n) & m1 ); //put count of each  2 bits into those  2 bits 
+			x = (x & m2 ) + ((x >>  2n) & m2 ); //put count of each  4 bits into those  4 bits 
+			x = (x & m4 ) + ((x >>  4n) & m4 ); //put count of each  8 bits into those  8 bits 
+			x = (x & m8 ) + ((x >>  8n) & m8 ); //put count of each 16 bits into those 16 bits 
+			x = (x & m16) + ((x >> 16n) & m16); //put count of each 32 bits into those 32 bits 
+			x = (x & m32) + ((x >> 32n) & m32); //put count of each 64 bits into those 64 bits 
+			return Number(x);
+		}
 
 		function powerSet(v) {
 			if (new Set(v).size != v.length) {
 				throw "duplicate elements";
 			}
 
-			results = [[]];
+			let results = [[]];
 			for (i = 0; i < v.length; ++i) {
-				temp = results.length;
+				let temp = results.length;
 				for (j = 0; j < temp; ++j) {
 					results.push([v[i], ...results[j]]);
 				}
@@ -25,46 +61,75 @@
 			return results;
 		}
 
-		bugs = []
-		changes = []
+		var bugs = []
+		var changes = []
 
-		// a list (per bug) of elements (list) of the power set of changes (as indices into changes)
-		// array of array of array of integers
-		state = []
+		// a list (per bug) of lists of bool flags where bit index is index into the changes array
+		// array of array of integers
+		var state = []
+
+		// same type as states
+		var failures = []
 
 		function getGrid() { return document.getElementById('grid'); }
 
 		function addBug(name) {
 			bugs.push(name);
-			state.push(powerSet(range(changes.length)));
+			state.push(range(1, Math.pow(2, changes.length)));
 			populateGrid();
 		}
 
 		function uiAddBug() {
-			name = prompt("Enter the bug's name.");
+			let name = prompt("Enter the bug's name.");
 			addBug(name);
 		}
 
 		function addChange(name) {
-			newIndex = changes.push(name) - 1;
-			for (i = 0; i < bugs.length; ++i) {
-				bugState = state[i];
-				temp = bugState.length;
-				bugState.push([newIndex]);
+			let newIndex = changes.push(name) - 1;
+			for (let i = 0; i < bugs.length; ++i) {
+				let bugState = state[i];
+				let temp = bugState.length;
+				let flag = Math.pow(2, newIndex - 1);
+				bugState.push(flag);
 				for (j = 0; j < temp; ++j) {
-					bugState.push([newIndex, ...bugState[j]]);
+					bugState.push(bugState[j] + flag);
 				}
 			}
 			populateGrid();
 		}
 
 		function uiAddChange() {
-			name = prompt("Enter the change's name.");
+			let name = prompt("Enter the change's name.");
 			addChange(name);
 		}
 
+		function getChangeIndicesFromSubsetList(subsets) {
+				let e = 0
+				for (let j = 0; j < subsets.length; ++j) {
+					e = e | subsets[j];
+				}
+				let index = 0;
+				let results = []
+				while (e > 0) {
+					if (e & 1) {
+						results.push(index);
+					}
+					e = e >> 1;
+					++index;
+				}
+				return results;				
+		}
+
+		function getBugCandidateChanges(i) {
+			return getChangeIndicesFromSubsetList(state[i]);
+		}
+
+		function getBugFlattenedResults(i) {
+			return getChangeIndicesFromSubsetList(failures[i]);
+		}
+
 		function populateGrid() {
-			g=getGrid();
+			let g = getGrid();
 
 			function clear() {
 				while (g.rows.length > 0) {
@@ -73,16 +138,16 @@
 			}
 
 			function dimension() {
-				for (r = 0; r < changes.length + 4; ++r) {
-					row = g.insertRow(r);
-					for (c = 0; c < bugs.length + 4; ++c) {
+				for (let r = 0; r < changes.length + 4; ++r) {
+					let row = g.insertRow(r);
+					for (let c = 0; c < bugs.length + 4; ++c) {
 						row.insertCell(c);
 					}
 				}
 			}
 
 			function appendButton(parent, html, handler) {
-				element = document.createElement("INPUT");
+				let element = document.createElement("INPUT");
 				element.type = "button";
 				element.value = html;
 				element.onclick = handler;
@@ -92,115 +157,118 @@
 			}
 
 			function setBugsLabel() {
-				v = g.rows[0].cells[3];
+				let v = g.rows[0].cells[3];
 				v.colSpan = bugs.length;
-				center = document.createElement('CENTER');
+				let center = document.createElement('CENTER');
 				v.appendChild(center);
 				center.innerHTML = "<STRONG>Bugs</STRONG>";
-				add = appendButton(center, "+", uiAddBug);
+				let add = appendButton(center, "+", uiAddBug);
 				add.style.margin = '5px';
 			}
 
 			function setChangesLabel() {
-				v = g.rows[2].cells[0];
+				let v = g.rows[2].cells[0];
 				v.rowSpan = changes.length + 1;
 				v.innerHTML = "<P style='writing-mode: tb-rl'><STRONG>Changes</STRONG></P>";
-				add = appendButton(v, "+", uiAddChange);
+				let add = appendButton(v, "+", uiAddChange);
 				add.style.margin = '5px';
 			}
 
 			function setBugHeaders() {
-				for (i = 0; i < bugs.length; ++i) {
-					c = g.rows[1].cells[i + 3]
+				for (let i = 0; i < bugs.length; ++i) {
+					let c = g.rows[1].cells[i + 3]
 					c.style.padding = '.2em';
 					c.innerHTML = bugs[i];
 				}
 			}
 
 			function setChangeHeaders() {
-				for (i = 0; i < changes.length; ++i) {
-					c = g.rows[i + 3].cells[1];
+				for (let i = 0; i < changes.length; ++i) {
+					let c = g.rows[i + 3].cells[1];
 					c.style.padding = '.2em';
 					c.innerHTML = changes[i];
 				}
 			}
 
 			function setBugState(i) {
-				function getBugCandidateChanges(i) {
-					// list of subsets for bug i
-					d = state[i];
-					e = []; // changes possibly causing bug i
-					for (j = 0; j < d.length; ++j) {
-						f = d[j]; // subset for bug i
-						e = union(e, f);
+				let d = getBugCandidateChanges(i);
+				if (d.length > 0) {
+					for (let j = 0; j < changes.length; ++j) {
+						let c = g.rows[j + 3].cells[i + 2]
+						c.innerHTML = d.includes(j) ? "❔" : "✔️";
 					}
-					return e;
-				}
-
-				d = getBugCandidateChanges(i);
-				for (j = 0; j < changes.length; ++j) {
-					c = g.rows[j + 3].cells[i + 2]
-					c.innerHTML = d.includes(j) ? "❓" : "✔️";
+				} else {
+					let failureResults = getBugFlattenedResults(i)
+					for (let j = 0; j < changes.length; ++j) {
+						let c = g.rows[j + 3].cells[i + 2]
+						c.innerHTML = failureResults.includes(j) ? "❌" : "✔️";
+					}
 				}
 			}
 
 			function setBugStates() {
-				for (i = 0; i < bugs.length; ++i) {
+				for (let i = 0; i < bugs.length; ++i) {
 					setBugState(i);
 				}
 			}
 
 			function addBugModifiers(i) {
-				c = g.rows[changes.length + 3].cells[i + 3];
-				edit = appendButton(c, "✎", function() { editBug(i); });
+				let c = g.rows[changes.length + 3].cells[i + 3];
+				let edit = appendButton(c, "✎", function() { editBug(i); });
 				edit.style.width = '100%';
 				c.appendChild(document.createElement('BR'))
-				del = appendButton(c, "🗑", function() { deleteBug(i); });
+				let del = appendButton(c, "🗑", function() { deleteBug(i); });
 				del.style.width = '100%'
 			}
 
 			function addChangeModifiers(i) {
-				c = g.rows[i + 3].cells[bugs.length + 2];
+				let c = g.rows[i + 3].cells[bugs.length + 2];
 				// c.style.height = '100%';
-				edit = appendButton(c, "✎", function() { editChange(i); });
-				edit.style.height = '100%';
-				up = appendButton(c, "↑", function() { moveChangeDown(i); });
-				up.style.height = '100%';
-				down = appendButton(c, "↓", function() { moveChangeUp(i); });
-				down.style.height = '100%';
-				del = appendButton(c, "🗑", function() { deleteChange(i); });
-				del.style.height = '100%';
+				let h = '40px'
+				let w = '50px'
+				let edit = appendButton(c, "✎", function() { editChange(i); });
+				edit.style.height = h;
+				edit.style.width = w;
+				let up = appendButton(c, "↑", function() { moveChangeDown(i); });
+				up.style.height = h;
+				up.style.width = w;
+				let down = appendButton(c, "↓", function() { moveChangeUp(i); });
+				down.style.height = h;
+				down.style.width = w;
+				let del = appendButton(c, "🗑", function() { deleteChange(i); });
+				del.style.height = h;
+				del.style.width = w;
 			}
 
 			function addModifierButtons() {
-				for (i = 0; i < bugs.length; ++i) {
+				for (let i = 0; i < bugs.length; ++i) {
 					addBugModifiers(i);
 				}
-				for (i = 0; i < changes.length; ++i) {
+				for (let i = 0; i < changes.length; ++i) {
 					addChangeModifiers(i);
 				}
 			}
 
 			function setBorders() {
-				bugsCellStyle = g.rows[0].cells[3].style;
+				let bugsCellStyle = g.rows[0].cells[3].style;
 				bugsCellStyle.borderLeft = '1px solid black';
 				bugsCellStyle.borderRight = '1px solid black';
 				bugsCellStyle.padding = '.2em';
 
-				changesCellStyle = g.rows[2].cells[0].style;
+				let changesCellStyle = g.rows[2].cells[0].style;
 				changesCellStyle.borderTop = '1px solid black';
 				changesCellStyle.borderBottom = '1px solid black';
 
-				for (i = 0; i < bugs.length; ++i) {
+				for (let i = 0; i < bugs.length; ++i) {
 					g.rows[1].cells[i + 3].style.border = '1px solid black';
 					g.rows[1].cells[i + 3].style.borderBottom = '0px solid black';
 					g.rows[changes.length + 3].cells[i + 3].style.borderLeft = '1px solid black';
 					g.rows[changes.length + 3].cells[i + 3].style.borderRight = '1px solid black';
 				}
-				for (i = 0; i < changes.length; ++i) {
+				for (let i = 0; i < changes.length; ++i) {
 					g.rows[i + 3].cells[bugs.length + 2].style.borderTop = '1px solid black';
 					g.rows[i + 3].cells[bugs.length + 2].style.borderBottom = '1px solid black';
-					for (j = -1; j < bugs.length; ++j) {
+					for (let j = -1; j < bugs.length; ++j) {
 						g.rows[i + 3].cells[j + 2].style.border = '1px solid black';
 					}
 				}
@@ -217,8 +285,115 @@
 			addModifierButtons();
 		}
 
+		function isSubset(a, b) {
+			return (a & b) == a;
+		}
+
+		function getNextSubset() {
+			function oddsOfFailure(subset, bugIndex) {
+				return popcount(subset) / getBugCandidateChanges(bugIndex).length;
+			}
+
+			function getBugSubsetWeights(bugIndex) {
+				let bug = state[bugIndex];
+				let weights = new Array(bug.length).fill(0)
+				for (let i = 0; i < bug.length; ++i) {
+					let a = bug[i];
+					for (let j = i + 1; j < bug.length; ++j) {
+						let b = bug[j]
+						if (isSubset(a, b)) { // a is a subset of b
+							weights[i] += oddsOfFailure(a, bugIndex); // so if a fails we can remove b, so add the odds of a failing to a's weight
+							weights[j] += 1 - oddsOfFailure(b, bugIndex); // and if b passes we can remove a, so add the odds of b passing to b's weight
+						}
+					}
+				}
+				return weights;
+			}
+
+			function getSubsetWeights() {
+				let weights = {}
+				for (let i = 0; i < bugs.length; ++i) {
+					let bug = state[i];
+					let bugWeights = getBugSubsetWeights(i);
+					for (let j = 0; j < bugWeights.length; ++j) {
+						let subset = bug[j];
+						let weight = bugWeights[j];
+						if (!(subset in weights)) {
+							weights[subset] = 0;
+						}
+						weights[subset] += weight;
+					}
+				}
+				return weights;
+			}
+
+			function getHeaviestSubsets() {
+				let weights = getSubsetWeights();
+				let heaviestWeight = 0;
+				let heaviestSubsets = [];
+				for (let subset in weights) {
+					if (weights[subset] > heaviestWeight) {
+						heaviestWeight = weights[subset];
+						heaviestSubsets = [subset];
+					} else if (weights[subset] == heaviestWeight) {
+						heaviestSubsets.push(subset);
+					}
+				}
+				return heaviestSubsets;
+			}
+
+			return Math.min(...getHeaviestSubsets());
+		}
+
+		function filterSubsets(passedSubset, bugSubsets) {
+			results = []
+			for (i = 0; i < bugSubsets.length; ++i) {
+				if (!isSubset(bugSubsets[i], passedSubset)) {
+					results.push(bugSubsets[i]);
+				}
+			}
+		}
+
+		function filterSupersets(failedSubset, bugSubsets) {
+			result = []
+			for (i = 0; i < bugSubsets.length; ++i) {
+				if (!isSubset(failedSubset, bugSubsets[i])) {
+					result.push(bugSubsets[i]);
+				}
+			}
+		}
+
+		function onFail(subset, bugIndex) {
+			failures[bugIndex] = filterSupersets(subset, failures[bugIndex]);
+			failures[bugIndex].push(subset);
+			state[bugIndex] = filterSupersets(subset, state[bugIndex]);
+		}
+
+		function onPass(subset, bugIndex) {
+			state[bugIndex] = filterSubsets(subset, state[bugIndex]);
+		}
+
+		function testInit() {
+			addChange('1');
+			addChange('2');
+			addChange('3');
+			addChange('4');
+			addChange('5');
+			addChange('6');
+			addBug('a');
+			addBug('b');
+			// addBug('c');
+			// addBug('d');
+			//addBug('e');
+			// state[0] = [0];
+			// failures[0] = [1, 2, 3, 16, 17, 18, 19];
+			populateGrid();
+		}
+
 		function init() {
 			populateGrid();
+			testInit();
+			alert(getChangeIndicesFromSubsetList([getNextSubset()]));
 		}
 
 		document.addEventListener('DOMContentLoaded', init, false);
@@ -229,7 +404,7 @@
 	</HEAD>
 	<STYLE>
 		table {
- 			border-collapse: collapse;
+			border-collapse: collapse;
 		}
 		table, th, td {
 			/*border: 1px solid black;*/
