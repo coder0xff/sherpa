@@ -125,19 +125,31 @@
 			return result;
 		}
 
+		function subsetListUnion(subsets) {
+				let subset = 0
+				for (let j = 0; j < subsets.length; ++j) {
+					subset = subset | subsets[j];
+				}
+				return subset;
+		}
+		
 		function getChangeIndicesFromSubsetList(subsets) {
 				let subset = 0
 				for (let j = 0; j < subsets.length; ++j) {
 					subset = subset | subsets[j];
 				}
-				return subsetToIndices(subset);
+				return subsetToIndices(subsetListUnion(subsets));
 		}
 
-		function getBugCandidateChanges(i) {
+		function getBugCandidateSubset(i) {
+			return subsetListUnion(state[i]);
+		}
+
+		function getBugCandidateChangeIndices(i) {
 			return getChangeIndicesFromSubsetList(state[i]);
 		}
 
-		function getBugFlattenedResults(i) {
+		function getBugFlattenedResultIndices(i) {
 			return getChangeIndicesFromSubsetList(failures[i]);
 		}
 
@@ -147,7 +159,7 @@
 
 		function getNextSubset() {
 			function oddsOfFailure(subset, bugIndex) {
-				return popcount(subset) / getBugCandidateChanges(bugIndex).length;
+				return popcount(subset) / popcount(getBugCandidateSubset(bugIndex));
 			}
 
 			function getBugSubsetWeights(bugIndex) {
@@ -293,19 +305,38 @@
 				}
 			}
 
+			function getBugChangeState(bugIndex, changeIndex) {
+				let f = failures[bugIndex];
+				let bug = state[bugIndex];
+				let mask = Math.pow(2, changeIndex);
+				let anySureFailure = false;
+				let isDone = !isSubset(Math.pow(2, changeIndex), getBugCandidateSubset(bugIndex));
+				for (let i = 0; i < f.length; ++i) {
+					if (isSubset(mask, f[i])) { // change is in failure i
+						let failureCanBeReduced = false;
+						for (let j = 0; j < bug.length; ++j) {
+							if (!isSubset(mask, bug[j])) {
+								if (isSubset(bug[j], f[i])) { // state j is a subset failure i
+									failureCanBeReduced = true; // failure i can be reduced to a failure without changeIndex
+									isDone = false;
+									break;
+								}
+							}
+						}
+						if (!failureCanBeReduced) {
+							anySureFailure = true;
+						}				
+					}
+				}
+				return isDone ?
+					(anySureFailure ? "❌" : "✔️") :
+					(anySureFailure ? "❓" /* red question mark */: "❔")
+			}
+
 			function setBugState(i) {
-				let d = getBugCandidateChanges(i);
-				if (d.length > 0) {
-					for (let j = 0; j < changes.length; ++j) {
-						let c = g.rows[j + 3].cells[i + 2]
-						c.innerHTML = d.includes(j) ? "❔" : "✔️";
-					}
-				} else {
-					let failureResults = getBugFlattenedResults(i)
-					for (let j = 0; j < changes.length; ++j) {
-						let c = g.rows[j + 3].cells[i + 2]
-						c.innerHTML = failureResults.includes(j) ? "❌" : "✔️";
-					}
+				for (let j = 0; j < changes.length; ++j) {
+					let c = g.rows[j + 3].cells[i + 2]
+					c.innerHTML = getBugChangeState(i, j);
 				}
 			}
 
@@ -424,21 +455,25 @@
 			}
 			p.innerHTML += " enabled, which bugs were reproducible? Double check your entries before submitting, as errors cannot be corrected.<br>";
 			for (let i = 0; i < bugs.length; ++i) {
-				let checkbox = p.appendChild(document.createElement('INPUT'));
-				checkbox.type = 'checkbox';
-				checkbox.id = 'bug' + i;
-				p.innerHTML += bugs[i] + "<br>";
+				if (state[i].length > 0) {
+					let checkbox = p.appendChild(document.createElement('INPUT'));
+					checkbox.type = 'checkbox';
+					checkbox.id = 'bug' + i;
+					p.innerHTML += bugs[i] + "<br>";
+				}
 			}
 			appendButton(p, "Submit", function() {
 				for (let i = 0; i < bugs.length; ++i) {
 					let checkbox = document.getElementById('bug' + i);
-					if (checkbox.checked) {
-						onFail(currentSubset, i);
-					} else {
-						onPass(currentSubset, i);
+					if (checkbox) {
+						if (checkbox.checked) {
+							onFail(currentSubset, i);
+						} else {
+							onPass(currentSubset, i);
+						}
 					}
-					doNextIteration();
 				}
+				doNextIteration();
 			});
 		}
 
@@ -455,22 +490,30 @@
 			} else {
 				populatePassFailPrompt();
 			}
+			if (true) {
+				let p = document.getElementById('debug');
+				p.innerHTML += "state = " + JSON.stringify(state) + "<br>";
+				p.innerHTML += "failures = " + JSON.stringify(failures) + "<br>";
+			}
 		}
 
 		function testInit() {
 			addChange('u');
 			addChange('v');
 			addChange('w');
-			// addChange('x');
-			// addChange('y');
-			// addChange('z');
+			addChange('x');
+			addChange('y');
+			addChange('z');
 			addBug('a');
 			addBug('b');
-			// addBug('c');
+			addBug('c');
 			// addBug('d');
 			//addBug('e');
 			// state[0] = [0];
 			// failures[0] = [1, 2, 3, 16, 17, 18, 19];
+			// state = [ [] ];
+			// failures = [ [ 1 ] ];
+			populateGrid();
 		}
 
 		function init() {
@@ -503,5 +546,6 @@
 			</TR>
 		</TABLE>
 		<P id="prompt" />
+		<P id="debug" />
 	</BODY>
 </HTML>
