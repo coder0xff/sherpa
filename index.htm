@@ -26,23 +26,35 @@
 
 		function union(a, b) { return [...new Set([...a, ...b])]; }
 	
+		// BigInt literals (123n) breaks Firefox's debugger's variable preview
+		// function popcount(x) {
+		// 	x = BigInt(x);
+		// 	let m1  = 0x5555555555555555n; //binary: 0101...
+		// 	let m2  = 0x3333333333333333n; //binary: 00110011..
+		// 	let m4  = 0x0f0f0f0f0f0f0f0fn; //binary:  4 zeros,  4 ones ...
+		// 	let m8  = 0x00ff00ff00ff00ffn; //binary:  8 zeros,  8 ones ...
+		// 	let m16 = 0x0000ffff0000ffffn; //binary: 16 zeros, 16 ones ...
+		// 	let m32 = 0x00000000ffffffffn; //binary: 32 zeros, 32 ones
+		// 	let hff = 0xffffffffffffffffn; //binary: all ones
+		// 	let h01 = 0x0101010101010101n; //the sum of 256 to the power of 0,1,2,3...
+		// 	x = (x & m1 ) + ((x >>  1n) & m1 ); //put count of each  2 bits into those  2 bits 
+		// 	x = (x & m2 ) + ((x >>  2n) & m2 ); //put count of each  4 bits into those  4 bits 
+		// 	x = (x & m4 ) + ((x >>  4n) & m4 ); //put count of each  8 bits into those  8 bits 
+		// 	x = (x & m8 ) + ((x >>  8n) & m8 ); //put count of each 16 bits into those 16 bits 
+		// 	x = (x & m16) + ((x >> 16n) & m16); //put count of each 32 bits into those 32 bits 
+		// 	x = (x & m32) + ((x >> 32n) & m32); //put count of each 64 bits into those 64 bits 
+		// 	return Number(x);
+		// }
+
 		function popcount(x) {
-			x = BigInt(x);
-			let m1  = 0x5555555555555555n; //binary: 0101...
-			let m2  = 0x3333333333333333n; //binary: 00110011..
-			let m4  = 0x0f0f0f0f0f0f0f0fn; //binary:  4 zeros,  4 ones ...
-			let m8  = 0x00ff00ff00ff00ffn; //binary:  8 zeros,  8 ones ...
-			let m16 = 0x0000ffff0000ffffn; //binary: 16 zeros, 16 ones ...
-			let m32 = 0x00000000ffffffffn; //binary: 32 zeros, 32 ones
-			let hff = 0xffffffffffffffffn; //binary: all ones
-			let h01 = 0x0101010101010101n; //the sum of 256 to the power of 0,1,2,3...
-			x = (x & m1 ) + ((x >>  1n) & m1 ); //put count of each  2 bits into those  2 bits 
-			x = (x & m2 ) + ((x >>  2n) & m2 ); //put count of each  4 bits into those  4 bits 
-			x = (x & m4 ) + ((x >>  4n) & m4 ); //put count of each  8 bits into those  8 bits 
-			x = (x & m8 ) + ((x >>  8n) & m8 ); //put count of each 16 bits into those 16 bits 
-			x = (x & m16) + ((x >> 16n) & m16); //put count of each 32 bits into those 32 bits 
-			x = (x & m32) + ((x >> 32n) & m32); //put count of each 64 bits into those 64 bits 
-			return Number(x);
+			let result = 0;
+			while (x > 0) {
+				if (x & 1) {
+					++result;
+				}
+				x >>= 1;
+			}
+			return result;
 		}
 
 		function powerSet(v) {
@@ -73,16 +85,38 @@
 
 		var currentSubset = null;
 
+		var counter = 1;
+
 		function addBug(name) {
 			bugs.push(name);
 			state.push(range(1, Math.pow(2, changes.length)));
 			failures.push([]);
-			populateGrid();
+			doPrompt();
 		}
 
 		function uiAddBug() {
 			let name = prompt("Enter the bug's name.");
+			if (name == null) {
+				return;
+			}
 			addBug(name);
+		}
+
+		function uiEditBug(i) {
+			let name = prompt("Enter the bug's name.", bugs[i]);
+			if (name == null) {
+				return;
+			}
+			bugs[i] = name;
+			doPrompt();
+		}
+
+		function uiDeleteBug(i) {
+			if (confirm("Are you sure you want to delete bug '" + bugs[i] +"'?")) {
+				state.splice(i, 1);
+				bugs.splice(i, 1);
+				doPrompt();
+			}
 		}
 
 		function addChange(name) {
@@ -90,18 +124,63 @@
 			for (let i = 0; i < bugs.length; ++i) {
 				let bugState = state[i];
 				let temp = bugState.length;
-				let flag = Math.pow(2, newIndex - 1);
+				let flag = Math.pow(2, newIndex);
 				bugState.push(flag);
-				for (j = 0; j < temp; ++j) {
+				for (let j = 0; j < temp; ++j) {
 					bugState.push(bugState[j] + flag);
 				}
 			}
-			populateGrid();
+			doPrompt();
 		}
 
 		function uiAddChange() {
 			let name = prompt("Enter the change's name.");
+			if (name == null) {
+				return;
+			}
 			addChange(name);
+		}
+
+		function uiEditChange(i) {
+			let name = prompt("Enter the change's name.", changes[i]);
+			if (name == null) {
+				return;
+			}
+			changes[i] = name;
+			doPrompt();
+		}
+
+		function uiDeleteChange(i) {
+			if (confirm("Are you sure you want to delete change '" + changes[i] +"'?")) {
+				let mask = Math.pow(2, i);
+				let lowMask = mask - 1;
+				let highMask = ~(mask | lowMask);
+				function f(subset) { return (subset & highMask) >> 1 | (subset & lowMask); }
+				for (let j = 0; j < state.length; ++j) {
+					let bug = state[j];
+					let failure = failures[j];
+					for (let k = 0; k < bug.length; ++k) {
+						bug[k] = f(bug[k]);
+					}
+					for (let k = 0; k < failure.length; ++k) {
+						failure[k] = f(failure[k]);
+					}
+				}
+				changes.splice(i, 1);
+				doPrompt();
+			}
+		}
+
+		function reset() {
+			let subsets = range(1, Math.pow(2, changes.length));
+			state = [];
+			failures = [];
+			for (let i = 0; i < bugs.length; ++i) {
+				state.push(subsets.slice())
+				failures.push([]);
+			}
+			counter = 1;
+			doPrompt();
 		}
 
 		function subsetToIndices(subset) {
@@ -233,14 +312,14 @@
 			return result;
 		}
 
-		function onFail(subset, bugIndex) {
-			failures[bugIndex] = filterSupersets(subset, failures[bugIndex]);
-			failures[bugIndex].push(subset);
-			state[bugIndex] = filterSupersets(subset, state[bugIndex]);
+		function onFail(bugIndex) {
+			failures[bugIndex] = filterSupersets(currentSubset, failures[bugIndex]);
+			failures[bugIndex].push(currentSubset);
+			state[bugIndex] = filterSupersets(currentSubset, state[bugIndex]);
 		}
 
-		function onPass(subset, bugIndex) {
-			state[bugIndex] = filterSubsets(subset, state[bugIndex]);
+		function onPass(bugIndex) {
+			state[bugIndex] = filterSubsets(currentSubset, state[bugIndex]);
 		}
 
 		function appendButton(parent, html, handler) {
@@ -253,201 +332,226 @@
 			return element;
 		}
 
-		function populateGrid() {
-			let g = document.getElementById('grid');
-
-			function clear() {
-				while (g.rows.length > 0) {
-					g.deleteRow(0);
-				};
-			}
-
-			function dimension() {
-				for (let r = 0; r < changes.length + 4; ++r) {
-					let row = g.insertRow(r);
-					for (let c = 0; c < bugs.length + 4; ++c) {
-						row.insertCell(c);
-					}
-				}
-			}
-
-			function setBugsLabel() {
-				let v = g.rows[0].cells[3];
-				v.colSpan = bugs.length;
-				let center = document.createElement('CENTER');
-				v.appendChild(center);
-				center.innerHTML = "<STRONG>Bugs</STRONG>";
-				let add = appendButton(center, "+", uiAddBug);
-				add.style.margin = '5px';
-			}
-
-			function setChangesLabel() {
-				let v = g.rows[2].cells[0];
-				v.rowSpan = changes.length + 1;
-				v.innerHTML = "<P style='writing-mode: tb-rl'><STRONG>Changes</STRONG></P>";
-				let add = appendButton(v, "+", uiAddChange);
-				add.style.margin = '5px';
-			}
-
-			function setBugHeaders() {
-				for (let i = 0; i < bugs.length; ++i) {
-					let c = g.rows[1].cells[i + 3]
-					c.style.padding = '.2em';
-					c.innerHTML = bugs[i];
-				}
-			}
-
-			function setChangeHeaders() {
-				for (let i = 0; i < changes.length; ++i) {
-					let c = g.rows[i + 3].cells[1];
-					c.style.padding = '.2em';
-					c.innerHTML = changes[i];
-				}
-			}
-
-			function getBugChangeState(bugIndex, changeIndex) {
-				let f = failures[bugIndex];
-				let bug = state[bugIndex];
-				let mask = Math.pow(2, changeIndex);
-				let anySureFailure = false;
-				let isDone = !isSubset(Math.pow(2, changeIndex), getBugCandidateSubset(bugIndex));
-				for (let i = 0; i < f.length; ++i) {
-					if (isSubset(mask, f[i])) { // change is in failure i
-						let failureCanBeReduced = false;
-						for (let j = 0; j < bug.length; ++j) {
-							if (!isSubset(mask, bug[j])) {
-								if (isSubset(bug[j], f[i])) { // state j is a subset failure i
-									failureCanBeReduced = true; // failure i can be reduced to a failure without changeIndex
-									isDone = false;
-									break;
-								}
-							}
-						}
-						if (!failureCanBeReduced) {
-							anySureFailure = true;
-						}				
-					}
-				}
-				return isDone ?
-					(anySureFailure ? "❌" : "✔️") :
-					(anySureFailure ? "❓" /* red question mark */: "❔")
-			}
-
-			function setBugState(i) {
-				for (let j = 0; j < changes.length; ++j) {
-					let c = g.rows[j + 3].cells[i + 2]
-					c.innerHTML = getBugChangeState(i, j);
-				}
-			}
-
-			function setBugStates() {
-				for (let i = 0; i < bugs.length; ++i) {
-					setBugState(i);
-				}
-			}
-
-			function addBugModifiers(i) {
-				let c = g.rows[changes.length + 3].cells[i + 3];
-				let edit = appendButton(c, "✎", function() { editBug(i); });
-				edit.style.width = '100%';
-				c.appendChild(document.createElement('BR'))
-				let del = appendButton(c, "🗑", function() { deleteBug(i); });
-				del.style.width = '100%'
-			}
-
-			function addChangeModifiers(i) {
-				let c = g.rows[i + 3].cells[bugs.length + 2];
-				// c.style.height = '100%';
-				let h = '40px'
-				let w = '50px'
-				let edit = appendButton(c, "✎", function() { editChange(i); });
-				edit.style.height = h;
-				edit.style.width = w;
-				let up = appendButton(c, "↑", function() { moveChangeDown(i); });
-				up.style.height = h;
-				up.style.width = w;
-				let down = appendButton(c, "↓", function() { moveChangeUp(i); });
-				down.style.height = h;
-				down.style.width = w;
-				let del = appendButton(c, "🗑", function() { deleteChange(i); });
-				del.style.height = h;
-				del.style.width = w;
-			}
-
-			function addModifierButtons() {
-				for (let i = 0; i < bugs.length; ++i) {
-					addBugModifiers(i);
-				}
-				for (let i = 0; i < changes.length; ++i) {
-					addChangeModifiers(i);
-				}
-			}
-
-			function setBorders() {
-				let bugsCellStyle = g.rows[0].cells[3].style;
-				bugsCellStyle.borderLeft = '1px solid black';
-				bugsCellStyle.borderRight = '1px solid black';
-				bugsCellStyle.padding = '.2em';
-
-				let changesCellStyle = g.rows[2].cells[0].style;
-				changesCellStyle.borderTop = '1px solid black';
-				changesCellStyle.borderBottom = '1px solid black';
-
-				for (let i = 0; i < bugs.length; ++i) {
-					g.rows[1].cells[i + 3].style.border = '1px solid black';
-					g.rows[1].cells[i + 3].style.borderBottom = '0px solid black';
-					g.rows[changes.length + 3].cells[i + 3].style.borderLeft = '1px solid black';
-					g.rows[changes.length + 3].cells[i + 3].style.borderRight = '1px solid black';
-				}
-				for (let i = 0; i < changes.length; ++i) {
-					g.rows[i + 3].cells[bugs.length + 2].style.borderTop = '1px solid black';
-					g.rows[i + 3].cells[bugs.length + 2].style.borderBottom = '1px solid black';
-					for (let j = -1; j < bugs.length; ++j) {
-						g.rows[i + 3].cells[j + 2].style.border = '1px solid black';
-					}
-				}
-			}
-
-			function setBugColors() {
-					for (let i = 0; i < bugs.length; ++i) {
-						let c = g.rows[1].cells[i + 3]
-						c.style.backgroundColor = (currentSubset != null && state[i].includes(currentSubset)) ? 'aquamarine' : '';
-					}
-			}
-			function setChangeColors() {
-				let indices = (currentSubset != null) ? subsetToIndices(currentSubset) : null;
-				for (let i = 0; i < changes.length; ++i) {
-					let c = g.rows[i + 3].cells[1];
-					c.style.backgroundColor = (indices != null && indices.includes(i)) ? 'aquamarine' : '';
-				}
-			}
-
-			clear();
-			dimension();
-			setBugsLabel();
-			setChangesLabel();
-			setBugHeaders();
-			setChangeHeaders();
-			setBugStates();
-			setBorders();
-			addModifierButtons();
-			setBugColors();
-			setChangeColors();
-		}
 
 		function getPrompt() {
 			return document.getElementById('prompt');
 		}
 
-		function doNextIteration() {
-			currentSubset = getNextSubset();
-			prompt();
+		function isComplete() {
+			for (let i = 0; i < state.length; ++i) {
+				bug = state[i]
+				for (let j = 0; j < bug.length; ++j) {
+					return false;
+				}
+			}
+			return true;
 		}
 
-		function populatePassFailPrompt() {
+		function doPrompt() {
+			// {
+			// 	let p = document.getElementById('debug');
+			// 	p.innerHTML += "state = " + JSON.stringify(state) + "<br>";
+			// 	p.innerHTML += "failures = " + JSON.stringify(failures) + "<br>";
+			// }
+
 			let p = getPrompt();
+			if (bugs.length == 0 || changes.length == 0) {
+				p.innerHTML = "Setup: use the grid above to enter bug and changes.";
+				populateGrid();
+				return;
+			}
+
+			currentSubset = getNextSubset();
+			function populateGrid() {
+				let g = document.getElementById('grid');
+
+				function clear() {
+					while (g.rows.length > 0) {
+						g.deleteRow(0);
+					};
+				}
+
+				function dimension() {
+					for (let r = 0; r < changes.length + 4; ++r) {
+						let row = g.insertRow(r);
+						for (let c = 0; c < bugs.length + 4; ++c) {
+							row.insertCell(c);
+						}
+					}
+				}
+
+				function setBugsLabel() {
+					let v = g.rows[0].cells[3];
+					v.colSpan = bugs.length;
+					let center = document.createElement('CENTER');
+					v.appendChild(center);
+					center.innerHTML = "<STRONG>Bugs</STRONG>";
+					let add = appendButton(center, "+", uiAddBug);
+					add.style.margin = '5px';
+				}
+
+				function setChangesLabel() {
+					let v = g.rows[2].cells[0];
+					v.rowSpan = changes.length + 1;
+					v.innerHTML = "<P style='writing-mode: tb-rl'><STRONG>Changes</STRONG></P>";
+					let add = appendButton(v, "+", uiAddChange);
+					add.style.margin = '5px';
+				}
+
+				function setBugHeaders() {
+					for (let i = 0; i < bugs.length; ++i) {
+						let c = g.rows[1].cells[i + 3]
+						c.style.padding = '.2em';
+						c.innerHTML = bugs[i];
+					}
+				}
+
+				function setChangeHeaders() {
+					for (let i = 0; i < changes.length; ++i) {
+						let c = g.rows[i + 3].cells[1];
+						c.style.padding = '.2em';
+						c.innerHTML = changes[i];
+					}
+				}
+
+				function getBugChangeState(bugIndex, changeIndex) {
+					let f = failures[bugIndex];
+					let bug = state[bugIndex];
+					let mask = Math.pow(2, changeIndex);
+					let anySureFailure = false;
+					let isDone = !isSubset(Math.pow(2, changeIndex), getBugCandidateSubset(bugIndex));
+					for (let i = 0; i < f.length; ++i) {
+						if (isSubset(mask, f[i])) { // change is in failure i
+							let failureCanBeReduced = false;
+							for (let j = 0; j < bug.length; ++j) {
+								if (!isSubset(mask, bug[j])) {
+									if (isSubset(bug[j], f[i])) { // state j is a subset failure i
+										failureCanBeReduced = true; // failure i can be reduced to a failure without changeIndex
+										isDone = false;
+										break;
+									}
+								}
+							}
+							if (!failureCanBeReduced) {
+								anySureFailure = true;
+							}				
+						}
+					}
+					return isDone ?
+						(anySureFailure ? "❌" : "✔️") :
+						(anySureFailure ? "❓" /* red question mark */: "❔")
+				}
+
+				function setBugState(i) {
+					for (let j = 0; j < changes.length; ++j) {
+						let c = g.rows[j + 3].cells[i + 2]
+						c.innerHTML = getBugChangeState(i, j);
+					}
+				}
+
+				function setBugStates() {
+					for (let i = 0; i < bugs.length; ++i) {
+						setBugState(i);
+					}
+				}
+
+				function addBugModifiers(i) {
+					let c = g.rows[changes.length + 3].cells[i + 3];
+					let edit = appendButton(c, "✎", function() { uiEditBug(i); });
+					edit.style.width = '100%';
+					c.appendChild(document.createElement('BR'))
+					let del = appendButton(c, "🗑", function() { uiDeleteBug(i); });
+					del.style.width = '100%'
+				}
+
+				function addChangeModifiers(i) {
+					let c = g.rows[i + 3].cells[bugs.length + 2];
+					// c.style.height = '100%';
+					let h = '40px'
+					let w = '50px'
+					let edit = appendButton(c, "✎", function() { uiEditChange(i); });
+					edit.style.height = h;
+					edit.style.width = w;
+					// let up = appendButton(c, "↑", function() { moveChangeDown(i); });
+					// up.style.height = h;
+					// up.style.width = w;
+					// let down = appendButton(c, "↓", function() { moveChangeUp(i); });
+					// down.style.height = h;
+					// down.style.width = w;
+					let del = appendButton(c, "🗑", function() { uiDeleteChange(i); });
+					del.style.height = h;
+					del.style.width = w;
+				}
+
+				function addModifierButtons() {
+					for (let i = 0; i < bugs.length; ++i) {
+						addBugModifiers(i);
+					}
+					for (let i = 0; i < changes.length; ++i) {
+						addChangeModifiers(i);
+					}
+				}
+
+				function setBorders() {
+					let bugsCellStyle = g.rows[0].cells[3].style;
+					bugsCellStyle.borderLeft = '1px solid black';
+					bugsCellStyle.borderRight = '1px solid black';
+					bugsCellStyle.padding = '.2em';
+
+					let changesCellStyle = g.rows[2].cells[0].style;
+					changesCellStyle.borderTop = '1px solid black';
+					changesCellStyle.borderBottom = '1px solid black';
+
+					for (let i = 0; i < bugs.length; ++i) {
+						g.rows[1].cells[i + 3].style.border = '1px solid black';
+						g.rows[1].cells[i + 3].style.borderBottom = '0px solid black';
+						g.rows[changes.length + 3].cells[i + 3].style.borderLeft = '1px solid black';
+						g.rows[changes.length + 3].cells[i + 3].style.borderRight = '1px solid black';
+					}
+					for (let i = 0; i < changes.length; ++i) {
+						g.rows[i + 3].cells[bugs.length + 2].style.borderTop = '1px solid black';
+						g.rows[i + 3].cells[bugs.length + 2].style.borderBottom = '1px solid black';
+						for (let j = -1; j < bugs.length; ++j) {
+							g.rows[i + 3].cells[j + 2].style.border = '1px solid black';
+						}
+					}
+				}
+
+				function setBugColors() {
+						for (let i = 0; i < bugs.length; ++i) {
+							let c = g.rows[1].cells[i + 3]
+							c.style.backgroundColor = (currentSubset != null && state[i].includes(currentSubset)) ? 'aquamarine' : '';
+						}
+				}
+
+				function setChangeColors() {
+					let indices = (currentSubset != null) ? subsetToIndices(currentSubset) : null;
+					for (let i = 0; i < changes.length; ++i) {
+						let c = g.rows[i + 3].cells[1];
+						c.style.backgroundColor = (indices != null && indices.includes(i)) ? 'aquamarine' : '';
+					}
+				}
+
+				clear();
+				dimension();
+				setBugsLabel();
+				setChangesLabel();
+				setBugHeaders();
+				setChangeHeaders();
+				setBugStates();
+				setBorders();
+				addModifierButtons();
+				setBugColors();
+				setChangeColors();
+			}
+			populateGrid();
+
 			let indices = subsetToIndices(currentSubset);
-			p.innerHTML = "With changes ";
+			if (indices.length == 0) {
+				p.innerHTML = "Done!";
+				return;
+			}
+			p.innerHTML = "Step " + counter + ": with changes ";
 			for (let i = 0; i < indices.length; ++i) {
 				if (i > 0) {
 					if (i == indices.length - 1) {
@@ -468,67 +572,60 @@
 				}
 			}
 			appendButton(p, "Submit", function() {
+				++counter;
 				for (let i = 0; i < bugs.length; ++i) {
 					let checkbox = document.getElementById('bug' + i);
 					if (checkbox) {
 						if (checkbox.checked) {
-							onFail(currentSubset, i);
+							onFail(i);
 						} else {
-							onPass(currentSubset, i);
+							onPass(i);
 						}
 					}
 				}
-				doNextIteration();
+				doPrompt();
 			});
 		}
 
-		function populateEnterBugsAndChangesPrompt() {
-			let p = getPrompt();
-			p.innerHTML = "Use the grid above to enter bug and changes. Once complete, click 'Begin.'<br>";
-			appendButton(p, "Begin", doNextIteration)
-		}
-
-		function prompt() {
-			populateGrid();
-			if (currentSubset == null) {
-				populateEnterBugsAndChangesPrompt();
-			} else {
-				populatePassFailPrompt();
+		function runTest(changeCount, expected /* list (per bug), of integer list */) {
+			function reset() {
+				var bugs = []
+				var changes = []
+				var state = []
+				var failures = []
+				var currentSubset = null;
 			}
-			if (true) {
-				let p = document.getElementById('debug');
-				p.innerHTML += "state = " + JSON.stringify(state) + "<br>";
-				p.innerHTML += "failures = " + JSON.stringify(failures) + "<br>";
+
+			reset();
+
+			for (let i = 0; i < changeCount; ++i) {
+				addChange('c' + i);
+			}
+
+			bugCount = expected.length;
+			for (let i = 0; i < bugCount; ++i) {
+				addBug('b' + i);
+			}
+
+			for (let i = 0; i < Math.pow(2, bugCount) && !isComplete(); ++i) { // don't let it run forever
+				currentSubset = getNextSubset();
+				for (let bugIndex = 0; bugIndex < bugs.length; ++bugIndex) {
+					if (state[bugIndex].includes(currentSubset)) {
+						e = expected[bugIndex];
+						for (let subsetIndex = 0; subsetIndex < e.length; ++subsetIndex) {
+							s = e[subsetIndex];
+							if (isSubset(s, currentSubset)) {
+								onFail(bugIndex);
+							} else {
+								onPass(bugIndex);
+							}
+						}
+					}
+				}
 			}
 		}
 
-		function testInit() {
-			addChange('u');
-			addChange('v');
-			addChange('w');
-			addChange('x');
-			addChange('y');
-			addChange('z');
-			addBug('a');
-			addBug('b');
-			addBug('c');
-			// addBug('d');
-			//addBug('e');
-			// state[0] = [0];
-			// failures[0] = [1, 2, 3, 16, 17, 18, 19];
-			// state = [ [] ];
-			// failures = [ [ 1 ] ];
-			populateGrid();
-		}
-
-		function init() {
-			populateGrid();
-			testInit();
-			prompt();
-			//alert(getChangeIndicesFromSubsetList([getNextSubset()]));
-		}
-
-		document.addEventListener('DOMContentLoaded', init, false);
+		document.addEventListener('DOMContentLoaded', doPrompt, false);
 
 	</SCRIPT>
 	<HEAD>
@@ -551,6 +648,8 @@
 			</TR>
 		</TABLE>
 		<P id="prompt" />
+		<P />
+		<INPUT type="button" value="Reset" style="font-size: 100%" onclick="reset()" />
 		<P id="debug" />
 	</BODY>
 </HTML>
