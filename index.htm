@@ -546,12 +546,43 @@
 			}
 			populateGrid();
 
+			function setNotes() {
+				let p2 = document.createElement("P");
+				p.appendChild(p2);
+				for (let i = 0; i < bugs.length; ++i) {
+					if (state[i] == 0) {
+						let bug = failures[i];
+						if (bug.length > 1) {
+							p2.innerHTML += "Bug '" + bugs[i] + "' has multiple causes:<br>";
+							for (let j = 0; j < bug.length; ++j) {
+								p2.innerHTML += "&nbsp;&nbsp;&nbsp;&nbsp;";
+								let comboIndices = subsetToIndices(bug[j]);
+								for (let k = 0; k < comboIndices.length; ++k) {
+									if (k > 0) {
+										p2.innerHTML += ", ";
+									}
+									p2.innerHTML += "'" + changes[comboIndices[k]] + "'";
+								}
+								if (comboIndices.length > 1) {
+									p2.innerHTML += ", when combined, cause '" + bugs[i] + "'";
+								} else {
+									p2.innerHTML += ", all by itself, causes '" + bugs[i] + "'";
+								}
+								p2.innerHTML += "<br>";
+							}
+						}
+					}
+				}				
+			}
+
 			let indices = subsetToIndices(currentSubset);
 			if (indices.length == 0) {
-				p.innerHTML = "Done!";
+				p.innerHTML = "Done!<br>";
+				setNotes();
 				return;
 			}
-			p.innerHTML = "Step " + counter + ": with changes ";
+
+			p.innerHTML = "Step " + counter + ": with only changes ";
 			for (let i = 0; i < indices.length; ++i) {
 				if (i > 0) {
 					if (i == indices.length - 1) {
@@ -585,6 +616,7 @@
 				}
 				doPrompt();
 			});
+			setNotes();
 		}
 
 		function runTest(changeCount, expected /* list (per bug), of integer list */) {
@@ -641,7 +673,11 @@
 		}
 	</STYLE>
 	<BODY>
-<!-- 		<INPUT type="checkbox"> Changes are cumulative (e.g. git commits)</INPUT> -->
+		<H1>Guided Differential Tester</H1>
+		<H2>Short explanation</H2>
+		<P>This tool is used to track down the causes of bugs. Enter the bugs and suspect changes below, and follow the prompts at the bottom. If none of that makes sense, this scenario will help to clarify things:</P>
+		<H2>Long explanation</H2>
+		<P>You have some system (e.g. software) that used to work correctly. Multiple changes have recently been made to it. (Examples of changes are adding mods to a game, adding some commits to a git repository, or substituting parts in a car.) However, since the changes were made, multiple issues have appeared (a.k.a. bugs). Undoing and redoing the changes one at a time might give you the information you need, or it might not. It can get complicated. If two changes are working together to create a problem, it will be hard to keep track off what combinations you've tried. The reality is that the combinations of factors leading to an issue can be arbitrary. In the worst case, a problem can be caused by multiple combinations independently! What to do? That's where this tool comes in. After you enter the bugs into the columns, and changes into the rows of the grid below, this tool will tell you which changes to undo and redo to collect that information in the fewest steps possible. When it's done, you'll get an overview in the grid, and if multiple independent combinations are the cause, you'll get a note on that as well. That's helpful, because while the grid may tell you that multiple changes are a problem, the notes will reveal that you can keep some of those problematic changes and still fix the problem! It should be noted, that while this tool performs this task in the optimal way, it can still take a lot of steps. The more changes you enter into the grid rows, the more effort it will take. Don't enter a change into the grid if you're absolutely sure that it's not a problem. One final cautionary note: be diligent. Just one mistake in entering data can spoil the entire result!</P>
 		<TABLE id="grid" style="font-size: 150%; text-align: center; margin: 1em;">
 			<TR>
 				<TD>JavaScript must be enabled.</TD>
@@ -649,7 +685,7 @@
 		</TABLE>
 		<P id="prompt" />
 		<P />
-		<INPUT type="button" value="Reset" style="font-size: 100%" onclick="reset()" />
+		<INPUT type="button" value="Reset test states" style="font-size: 100%" onclick="reset()" />
 		<P id="debug" />
 	</BODY>
 </HTML>
