@@ -26,26 +26,6 @@
 
 		function union(a, b) { return [...new Set([...a, ...b])]; }
 	
-		// BigInt literals (123n) breaks Firefox's debugger's variable preview
-		// function popcount(x) {
-		// 	x = BigInt(x);
-		// 	let m1  = 0x5555555555555555n; //binary: 0101...
-		// 	let m2  = 0x3333333333333333n; //binary: 00110011..
-		// 	let m4  = 0x0f0f0f0f0f0f0f0fn; //binary:  4 zeros,  4 ones ...
-		// 	let m8  = 0x00ff00ff00ff00ffn; //binary:  8 zeros,  8 ones ...
-		// 	let m16 = 0x0000ffff0000ffffn; //binary: 16 zeros, 16 ones ...
-		// 	let m32 = 0x00000000ffffffffn; //binary: 32 zeros, 32 ones
-		// 	let hff = 0xffffffffffffffffn; //binary: all ones
-		// 	let h01 = 0x0101010101010101n; //the sum of 256 to the power of 0,1,2,3...
-		// 	x = (x & m1 ) + ((x >>  1n) & m1 ); //put count of each  2 bits into those  2 bits 
-		// 	x = (x & m2 ) + ((x >>  2n) & m2 ); //put count of each  4 bits into those  4 bits 
-		// 	x = (x & m4 ) + ((x >>  4n) & m4 ); //put count of each  8 bits into those  8 bits 
-		// 	x = (x & m8 ) + ((x >>  8n) & m8 ); //put count of each 16 bits into those 16 bits 
-		// 	x = (x & m16) + ((x >> 16n) & m16); //put count of each 32 bits into those 32 bits 
-		// 	x = (x & m32) + ((x >> 32n) & m32); //put count of each 64 bits into those 64 bits 
-		// 	return Number(x);
-		// }
-
 		function popcount(x) {
 			let result = 0;
 			while (x > 0) {
