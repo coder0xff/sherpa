@@ -651,15 +651,36 @@
 			/*border: 1px solid black;*/
 			padding: 0;
 		}
+		#key td {
+			border: 1px solid black;
+			padding: .5em;
+		}
 	</STYLE>
 	<BODY>
 		<H1>Guided Differential Tester</H1>
 		<H2>Short explanation</H2>
 		<P>This tool is used to track down the causes of bugs. Enter the bugs and suspect changes below, and follow the prompts at the bottom. If none of that makes sense, scroll to the bottom for the long explanation.</P>
-		<TABLE id="grid" style="font-size: 150%; text-align: center; margin: 1em;">
+		<TABLE id="grid" style="display: inline-table; font-size: 150%; text-align: center; margin: 1em;">
 			<TR>
 				<TD>JavaScript must be enabled.</TD>
 			</TR>
+		</TABLE>
+		<TABLE id="key" style="display: inline-table">
+			<TR>
+				<TD colspan=2 style="border: none"><SPAN style="font-size: 150%;">Key</SPAN></TD>
+			</TR>
+			<TR>
+				<TD>❔</TD><TD>Collecting information</TD>
+			</TR>
+			<TR>
+				<TD>❓</TD><TD>Known bad, but still collecting</TD>
+			</TR>
+			<TR>
+				<TD>✔️</TD><TD>Known good</TD>
+			</TR>
+			<TR>
+				<TD>❌</TD><TD>Known bad</TD>
+			</TR> 
 		</TABLE>
 		<H2>Status:</H2>
 		<P id="prompt" style="font-size: 150%; color: green"/>
