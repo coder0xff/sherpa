@@ -256,11 +256,11 @@
 			return results;
 		}
 
-		function filterSupersets(failedSubset, bugSubsets) {
+		function filterSupersets(set, setList) {
 			let result = []
-			for (let i = 0; i < bugSubsets.length; ++i) {
-				if (!isSubset(failedSubset, bugSubsets[i])) {
-					result.push(bugSubsets[i]);
+			for (let i = 0; i < setList.length; ++i) {
+				if (!isSubset(set, setList[i])) {
+					result.push(setList[i]);
 				}
 			}
 			return result;
