@@ -540,10 +540,11 @@
 			function setNotes() {
 				let p2 = document.createElement("P");
 				p.appendChild(p2);
+				p2.innerHTML = "NOTES:"
 				for (let i = 0; i < bugs.length; ++i) {
 					let unreducibleFailures = getUnreducibleFailuresForBug(i);
 					if (unreducibleFailures.length > 1) {
-						p2.innerHTML += "NOTES:<br>Bug '" + bugs[i] + "' has multiple causes:<br>";
+						p2.innerHTML += "<br>Bug '" + bugs[i] + "' has multiple causes:<br>";
 						for (let j = 0; j < unreducibleFailures.length; ++j) {
 							p2.innerHTML += "&nbsp;&nbsp;&nbsp;&nbsp;";
 							let comboIndices = subsetToIndices(unreducibleFailures[j]);
