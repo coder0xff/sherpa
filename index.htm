@@ -126,15 +126,17 @@
 		}
 
 		function reset() {
-			let subsets = range(1, Math.pow(2, changes.length));
-			state = [];
-			failures = [];
-			for (let i = 0; i < bugs.length; ++i) {
-				state.push(subsets.slice())
-				failures.push([]);
+			if (confirm("Are you sure you want to delete all test data?")) {
+				let subsets = range(1, Math.pow(2, changes.length));
+				state = [];
+				failures = [];
+				for (let i = 0; i < bugs.length; ++i) {
+					state.push(subsets.slice())
+					failures.push([]);
+				}
+				counter = 1;
+				doPrompt();
 			}
-			counter = 1;
-			doPrompt();
 		}
 
 		function subsetToIndices(subset) {
