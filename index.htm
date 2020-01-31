@@ -124,7 +124,7 @@
 		}
 
 		function reset() {
-			if (confirm("Are you sure you want to delete all test data?")) {
+			if (confirm("Are you sure you want to delete all test data? The rows and columns will not be deleted.")) {
 				let subsets = range(1, Math.pow(2, changes.length));
 				state = [];
 				failures = [];
