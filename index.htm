@@ -366,6 +366,9 @@
 						let c = g.rows[1].cells[i + 3]
 						c.style.padding = '.2em';
 						c.innerHTML = bugs[i];
+						if (getUnreducibleFailuresForBug(i).length > 1) {
+							c.innerHTML += "*";
+						}
 					}
 				}
 
@@ -519,30 +522,50 @@
 			}
 			populateGrid();
 
+			function canFailureBeReducedForBug(bugIndex, failure) {
+				let bug = state[bugIndex];
+				let anySureFailure = false;
+				for (let i = 0; i < bug.length; ++i) {
+					if (isSubset(bug[i], failure)) { // state i is a subset of failure
+						return true;
+					}
+				}
+				return false;
+			}
+
+			function getUnreducibleFailuresForBug(bugIndex) {
+				let f = failures[bugIndex];
+				let results = [];
+				for (let i = 0; i < f.length; ++i) {
+					if (!canFailureBeReducedForBug(bugIndex, f[i])) {
+						results.push(f[i]);
+					}
+				}
+				return results;
+			}
+
 			function setNotes() {
 				let p2 = document.createElement("P");
 				p.appendChild(p2);
 				for (let i = 0; i < bugs.length; ++i) {
-					if (state[i] == 0) {
-						let bug = failures[i];
-						if (bug.length > 1) {
-							p2.innerHTML += "NOTES:<br>Bug '" + bugs[i] + "' has multiple causes:<br>";
-							for (let j = 0; j < bug.length; ++j) {
-								p2.innerHTML += "&nbsp;&nbsp;&nbsp;&nbsp;";
-								let comboIndices = subsetToIndices(bug[j]);
-								for (let k = 0; k < comboIndices.length; ++k) {
-									if (k > 0) {
-										p2.innerHTML += ", ";
-									}
-									p2.innerHTML += "'" + changes[comboIndices[k]] + "'";
+					let unreducibleFailures = getUnreducibleFailuresForBug(i);
+					if (unreducibleFailures.length > 1) {
+						p2.innerHTML += "NOTES:<br>Bug '" + bugs[i] + "' has multiple causes:<br>";
+						for (let j = 0; j < unreducibleFailures.length; ++j) {
+							p2.innerHTML += "&nbsp;&nbsp;&nbsp;&nbsp;";
+							let comboIndices = subsetToIndices(unreducibleFailures[j]);
+							for (let k = 0; k < comboIndices.length; ++k) {
+								if (k > 0) {
+									p2.innerHTML += ", ";
 								}
-								if (comboIndices.length > 1) {
-									p2.innerHTML += ", when combined, cause '" + bugs[i] + "'";
-								} else {
-									p2.innerHTML += ", all by itself, causes '" + bugs[i] + "'";
-								}
-								p2.innerHTML += "<br>";
+								p2.innerHTML += "'" + changes[comboIndices[k]] + "'";
 							}
+							if (comboIndices.length > 1) {
+								p2.innerHTML += ", when combined, cause '" + bugs[i] + "'";
+							} else {
+								p2.innerHTML += ", all by itself, causes '" + bugs[i] + "'";
+							}
+							p2.innerHTML += "<br>";
 						}
 					}
 				}				
@@ -680,6 +703,9 @@
 			<TR>
 				<TD>❌*</TD><TD>Multiple bad (see notes)</TD>
 			</TR>
+			<TR>
+				<TD>[bug name]*</TD><TD>Multiple causes (see notes)</TD>
+			<TR>
 		</TABLE>
 		<H2>Status:</H2>
 		<P id="prompt" style="font-size: 150%; color: green"/>
