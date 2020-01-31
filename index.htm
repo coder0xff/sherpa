@@ -37,22 +37,6 @@
 			return result;
 		}
 
-		function powerSet(v) {
-			if (new Set(v).size != v.length) {
-				throw "duplicate elements";
-			}
-
-			let results = [[]];
-			for (i = 0; i < v.length; ++i) {
-				let temp = results.length;
-				for (j = 0; j < temp; ++j) {
-					results.push([v[i], ...results[j]]);
-				}
-			}
-
-			return results;
-		}
-
 		var bugs = []
 		var changes = []
 
@@ -100,14 +84,13 @@
 		}
 
 		function addChange(name) {
+			let others = range(0, Math.pow(2, changes.length));
 			let newIndex = changes.push(name) - 1;
-			for (let i = 0; i < bugs.length; ++i) {
+			let mask = Math.pow(2, newIndex);
+			for (let i = 0; i < state.length; ++i) {
 				let bugState = state[i];
-				let temp = bugState.length;
-				let flag = Math.pow(2, newIndex);
-				bugState.push(flag);
-				for (let j = 0; j < temp; ++j) {
-					bugState.push(bugState[j] + flag);
+				for (let j = 0; j < others.length; ++j) {
+					bugState.push(others[j] | mask);
 				}
 			}
 			doPrompt();
