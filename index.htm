@@ -116,18 +116,9 @@
 		function uiDeleteChange(i) {
 			if (confirm("Are you sure you want to delete change '" + changes[i] +"'?")) {
 				let mask = Math.pow(2, i);
-				let lowMask = mask - 1;
-				let highMask = ~(mask | lowMask);
-				function f(subset) { return (subset & highMask) >> 1 | (subset & lowMask); }
-				for (let j = 0; j < state.length; ++j) {
-					let bug = state[j];
-					let failure = failures[j];
-					for (let k = 0; k < bug.length; ++k) {
-						bug[k] = f(bug[k]);
-					}
-					for (let k = 0; k < failure.length; ++k) {
-						failure[k] = f(failure[k]);
-					}
+				for (let i = 0; i < state.length; ++i) {
+					state[i] = state[i].filter((v) => !isSubset(mask, v));
+					failures[i] = failures[i].filter((v) => !isSubset(mask, v));
 				}
 				changes.splice(i, 1);
 				doPrompt();
