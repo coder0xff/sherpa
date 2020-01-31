@@ -400,26 +400,36 @@
 					let mask = Math.pow(2, changeIndex);
 					let anySureFailure = false;
 					let isDone = !isSubset(Math.pow(2, changeIndex), getBugCandidateSubset(bugIndex));
+					let failureNotReducibleToCount = 0;
 					for (let i = 0; i < f.length; ++i) {
 						if (isSubset(mask, f[i])) { // change is in failure i
 							let failureCanBeReduced = false;
+							let failureCanBeReducedToRemoveChange = false;
 							for (let j = 0; j < bug.length; ++j) {
-								if (!isSubset(mask, bug[j])) {
-									if (isSubset(bug[j], f[i])) { // state j is a subset failure i
-										failureCanBeReduced = true; // failure i can be reduced to a failure without changeIndex
+								if (isSubset(bug[j], f[i])) { // state j is a subset of failure i
+									failureCanBeReduced = true;
+									if (!isSubset(mask, bug[j])) { // change is not in state j
+										failureCanBeReducedToRemoveChange = true; // failure i can be reduced to a failure without changeIndex
 										isDone = false;
 										break;
 									}
 								}
 							}
-							if (!failureCanBeReduced) {
+							if (!failureCanBeReducedToRemoveChange) {
 								anySureFailure = true;
-							}				
+							}
+							if (!failureCanBeReduced) {
+								++failureNotReducibleToCount;
+							}	
 						}
 					}
-					return isDone ?
+					let result = isDone ?
 						(anySureFailure ? "❌" : "✔️") :
-						(anySureFailure ? "❓" /* red question mark */: "❔")
+						(anySureFailure ? "❓" /* red question mark */: "❔");
+					if (failureNotReducibleToCount > 1) {
+						result = result + "*";
+					}
+					return result;
 				}
 
 				function setBugState(i) {
@@ -673,14 +683,20 @@
 				<TD>❔</TD><TD>Collecting information</TD>
 			</TR>
 			<TR>
-				<TD>❓</TD><TD>Known bad, but still collecting</TD>
+				<TD>❓</TD><TD>Bad, still collecting</TD>
 			</TR>
 			<TR>
-				<TD>✔️</TD><TD>Known good</TD>
+				<TD>❓*</TD><TD>Multiple bad (see notes), still collecting</TD>
 			</TR>
 			<TR>
-				<TD>❌</TD><TD>Known bad</TD>
-			</TR> 
+				<TD>✔️</TD><TD>Good</TD>
+			</TR>
+			<TR>
+				<TD>❌</TD><TD>Bad</TD>
+			</TR>
+			<TR>
+				<TD>❌*</TD><TD>Multiple bad (see notes)</TD>
+			</TR>
 		</TABLE>
 		<H2>Status:</H2>
 		<P id="prompt" style="font-size: 150%; color: green"/>
