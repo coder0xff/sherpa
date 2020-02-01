@@ -304,8 +304,8 @@
 		function doPrompt() {
 			// {
 			// 	let p = document.getElementById('debug');
-			// 	p.innerHTML += "state = " + JSON.stringify(state) + "<br>";
-			// 	p.innerHTML += "failures = " + JSON.stringify(failures) + "<br>";
+			// 	p.innerHTML += "state = " + JSON.stringify(state) + "<BR>";
+			// 	p.innerHTML += "failures = " + JSON.stringify(failures) + "<BR>";
 			// }
 
 			let p = getPrompt();
@@ -535,59 +535,134 @@
 				return results;
 			}
 
-			function setNotes() {
-				let p2 = document.createElement("P");
-				p.appendChild(p2);
-				p2.innerHTML = "NOTES:"
-				for (let i = 0; i < bugs.length; ++i) {
-					let unreducibleFailures = getUnreducibleFailuresForBug(i);
-					if (unreducibleFailures.length > 1) {
-						p2.innerHTML += "<br>Bug '" + bugs[i] + "' has multiple causes:<br>";
-						for (let j = 0; j < unreducibleFailures.length; ++j) {
-							p2.innerHTML += "&nbsp;&nbsp;&nbsp;&nbsp;";
-							let comboIndices = subsetToIndices(unreducibleFailures[j]);
-							for (let k = 0; k < comboIndices.length; ++k) {
-								if (k > 0) {
-									p2.innerHTML += ", ";
-								}
-								p2.innerHTML += "'" + changes[comboIndices[k]] + "'";
-							}
-							if (comboIndices.length > 1) {
-								p2.innerHTML += ", when combined, cause '" + bugs[i] + "'";
-							} else {
-								p2.innerHTML += ", all by itself, causes '" + bugs[i] + "'";
-							}
-							p2.innerHTML += "<br>";
+			function getRecommendationsForBug(bugIndex) {
+				function powerSet(subset) {
+					if (subset == 0) {
+						return [0];
+					}
+					let results = powerSet(subset >> 1).map((x) => x << 1);
+					if (subset & 1) {
+						let subResults = results;
+						results = []
+						for (let i = 0; i < subResults.length; ++i) {
+							results.push(subResults[i]);
+							results.push(subResults[i] | 1);
 						}
 					}
+					return results;
+				}
+
+				let bugFailures = failures[bugIndex];
+				if (bugFailures.length < 2) {
+					return null;
+				}
+				let problematicChanges = subsetListUnion(bugFailures);
+				let stack = powerSet(problematicChanges);
+				stack.reverse();
+				let candidates = [];
+				while (stack.length > 0) {
+					let subset = stack.pop();
+					let fixesBug = true;
+					for (const failure of bugFailures) {
+						if (!(subset & failure)) { // set intersection
+							fixesBug = false;
+							break;
+						}
+					}
+					if (fixesBug) {
+						candidates.push(subset)
+						stack = filterSupersets(subset, stack);
+					}
+				}
+				candidates.sort((x, y) => popcount(x) - popcount(y));
+				return candidates;
+			}
+
+			function prettyPrintList(templateOne, templateMany, list) {
+				if (list.length == 0) {
+					throw "non-empty list expected";
+				}
+				if (list.length == 1) {
+					return templateOne.replace('%', list[0]);
+				}
+				let t = "";
+				for (let i = 0; i < list.length; ++i) {
+					if (i == list.length - 1) {
+						t += " and ";
+					} else if (i > 0) {
+						t += ", ";
+					}
+					t += list[i];
+				}
+				return templateMany.replace('%', t);
+			}
+
+			function prettyPrintNameList(templateOne, templateMany, list) {
+				return prettyPrintList(templateOne, templateMany, list.map((x) => "'" + x + "'"));
+			}
+
+			function setNotes() {
+				function getFailureText(bugIndex, failure) {
+							let indices = subsetToIndices(failure);
+							return (
+								"Bug '" + bugs[bugIndex] + "' is caused by " +
+								prettyPrintNameList("change %.", "the combination of changes %.", indices.map((x) => changes[x])));
+				}
+
+				function getRecommendationText(bugIndex, recommendation) {
+					let indices = subsetToIndices(recommendation);
+					return (
+						"Bug '" + bugs[bugIndex] + "' is fixed by disabling " +
+						prettyPrintNameList("change %.", " changes %.", indices.map((x) => changes[x])));
+				}
+
+				let p2 = document.createElement("P");
+				p.appendChild(p2);
+				let notesHeader = "NOTES:<BR>";
+				p2.innerHTML = notesHeader;
+				for (let i = 0; i < bugs.length; ++i) {
+					let unreducibleFailures = getUnreducibleFailuresForBug(i);
+					if (unreducibleFailures.length == 1) {
+						p2.innerHTML += getFailureText(i, unreducibleFailures[0]) + "<BR>";
+					} else if (unreducibleFailures.length > 1) {
+						p2.innerHTML += "Bug '" + bugs[i] + "' has multiple causes:<BR>";
+						p2.innerHTML += unreducibleFailures.map((x) => "&nbsp;&nbsp;&nbsp;&nbsp;" + getFailureText(i, x)).join('<BR>');
+						p2.innerHTML += "<BR>";
+					}
+					if (state[i].length == 0) {
+						let recommendations = getRecommendationsForBug(i);
+						if (recommendations != null) {
+							if (recommendations.length == 1) {
+								p2.innerHTML += getRecommendationText(i, recommendations[0]) + "<BR>";
+							} else {
+								p2.innerHTML += "Bug '" + bugs[i] + "' has multiple recommendations:<BR>";
+								p2.innerHTML += recommendations.map((x) => "&nbsp;&nbsp;&nbsp;&nbsp;" + getRecommendationText(i, x)).join('<BR>');
+								p2.innerHTML += "<BR>";
+							}
+						}
+					}
+				}
+				if (p2.innerHTML.length == notesHeader.length) {
+					p2.innerHTML = "NOTES: None<BR>";
 				}
 			}
 
 			let indices = subsetToIndices(currentSubset);
 			if (indices.length == 0) {
-				p.innerHTML = "Done!<br>";
+				p.innerHTML = "Done!<BR>";
 				setNotes();
 				return;
 			}
 
-			p.innerHTML = "Step " + counter + ": with only changes ";
-			for (let i = 0; i < indices.length; ++i) {
-				if (i > 0) {
-					if (i == indices.length - 1) {
-						p.innerHTML += " and ";
-					} else {
-						p.innerHTML += ", ";
-					}
-				}
-				p.innerHTML += "&quot;" + changes[indices[i]] + "&quot;";
-			}
-			p.innerHTML += " enabled, which bugs were reproducible? Double check your entries before submitting, as errors cannot be corrected.<br>";
+			p.innerHTML = "Step " + counter + ": with only ";
+			p.innerHTML += prettyPrintNameList("change %", "changes %", indices.map((x) => changes[x]));
+			p.innerHTML += " enabled, which bugs were reproducible? Double check your entries before submitting, as errors cannot be corrected.<BR>";
 			for (let i = 0; i < bugs.length; ++i) {
 				if (state[i].includes(currentSubset)) {
 					let checkbox = p.appendChild(document.createElement('INPUT'));
 					checkbox.type = 'checkbox';
 					checkbox.id = 'bug' + i;
-					p.innerHTML += bugs[i] + "<br>";
+					p.innerHTML += bugs[i] + "<BR>";
 				}
 			}
 			appendButton(p, "Submit", function() {
@@ -645,7 +720,12 @@
 			}
 		}
 
-		document.addEventListener('DOMContentLoaded', doPrompt, false);
+		function init() {
+			// setup any debugging states here
+			doPrompt();
+		}
+
+		document.addEventListener('DOMContentLoaded', init, false);
 
 	</SCRIPT>
 	<HEAD>
